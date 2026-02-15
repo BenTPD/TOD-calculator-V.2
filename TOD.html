@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="en" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Top of Descent Calculator</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="/_sdk/element_sdk.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Outfit:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-color: #0a0f1a;
+      --surface-color: #131b2e;
+      --text-color: #e8ecf4;
+      --primary-color: #00d4aa;
+      --secondary-color: #1e293b;
+    }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: 'Outfit', sans-serif;
+      background: var(--bg-color);
+      color: var(--text-color);
+    }
+
+    .mono { font-family: 'JetBrains Mono', monospace; }
+
+    .app-wrapper {
+      width: 100%;
+      height: 100%;
+      overflow-y: auto;
+      overflow-x: hidden;
+      background: var(--bg-color);
+    }
+
+    /* Runway lines background */
+    .app-wrapper::before {
+      content: '';
+      position: fixed;
+      top: 0; left: 50%;
+      transform: translateX(-50%);
+      width: 2px;
+      height: 100%;
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 20px,
+        rgba(0, 212, 170, 0.06) 20px,
+        rgba(0, 212, 170, 0.06) 40px
+      );
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .input-field {
+      background: var(--secondary-color);
+      border: 1.5px solid rgba(0, 212, 170, 0.15);
+      color: var(--text-color);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.25rem;
+      padding: 14px 16px;
+      border-radius: 10px;
+      width: 100%;
+      outline: none;
+      transition: border-color 0.25s, box-shadow 0.25s;
+    }
+
+    .input-field:focus {
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba(0, 212, 170, 0.12);
+    }
+
+    .input-field::placeholder {
+      color: rgba(232, 236, 244, 0.25);
+    }
+
+    .calc-btn {
+      background: var(--primary-color);
+      color: var(--bg-color);
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      font-size: 1.1rem;
+      letter-spacing: 0.04em;
+      padding: 16px;
+      border-radius: 12px;
+      border: none;
+      cursor: pointer;
+      width: 100%;
+      transition: transform 0.15s, box-shadow 0.25s, opacity 0.2s;
+      box-shadow: 0 4px 24px rgba(0, 212, 170, 0.2);
+    }
+
+    .calc-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 32px rgba(0, 212, 170, 0.3);
+    }
+
+    .calc-btn:active {
+      transform: translateY(0);
+      opacity: 0.9;
+    }
+
+    .result-card {
+      background: var(--surface-color);
+      border: 1.5px solid rgba(0, 212, 170, 0.12);
+      border-radius: 14px;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .result-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0;
+      width: 4px;
+      height: 100%;
+      background: var(--primary-color);
+      border-radius: 4px 0 0 4px;
+    }
+
+    .result-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--primary-color);
+      line-height: 1.1;
+    }
+
+    .result-unit {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      color: rgba(0, 212, 170, 0.6);
+      font-weight: 500;
+    }
+
+    .altitude-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(0, 212, 170, 0.08);
+      border: 1px solid rgba(0, 212, 170, 0.15);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--primary-color);
+    }
+
+    .error-msg {
+      color: #ff6b6b;
+      font-size: 0.85rem;
+      padding: 10px 14px;
+      background: rgba(255, 107, 107, 0.08);
+      border: 1px solid rgba(255, 107, 107, 0.2);
+      border-radius: 10px;
+      display: none;
+    }
+
+    .error-msg.show { display: block; }
+
+    .results-section {
+      display: none;
+      animation: slideUp 0.4s ease-out;
+    }
+
+    .results-section.show { display: block; }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .fade-in {
+      animation: fadeIn 0.6s ease-out;
+    }
+
+    /* Scanline overlay for cockpit feel */
+    .scanline-overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 2px,
+        rgba(0, 0, 0, 0.03) 2px,
+        rgba(0, 0, 0, 0.03) 4px
+      );
+      pointer-events: none;
+      z-index: 999;
+    }
+
+    /* Remove number input spinners */
+    input[type=number]::-webkit-outer-spin-button,
+    input[type=number]::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    input[type=number] { -moz-appearance: textfield; }
+
+    .label-text {
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(232, 236, 244, 0.5);
+      margin-bottom: 6px;
+    }
+
+    .plane-icon {
+      display: inline-block;
+      transform: rotate(-45deg);
+      font-size: 1.1rem;
+    }
+  </style>
+  <style>body { box-sizing: border-box; }</style>
+  <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
+ </head>
+ <body>
+  <div class="app-wrapper" id="appWrapper">
+   <div class="scanline-overlay"></div>
+   <div style="position:relative; z-index:1; max-width:440px; margin:0 auto; padding:24px 20px 40px;"><!-- Header -->
+    <header class="fade-in" style="text-align:center; margin-bottom:32px; padding-top:12px;">
+     <div style="margin-bottom:10px;">
+      <svg width="44" height="44" viewbox="0 0 44 44" fill="none" style="display:inline-block;"><circle cx="22" cy="22" r="21" stroke="rgba(0,212,170,0.3)" stroke-width="1.5" fill="rgba(0,212,170,0.05)" /> <path d="M22 10 L22 34 M16 28 L22 34 L28 28" stroke="#00d4aa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /> <circle cx="22" cy="14" r="2.5" fill="#00d4aa" opacity="0.6" />
+      </svg>
+     </div>
+     <h1 id="appTitle" style="font-size:1.45rem; font-weight:700; letter-spacing:-0.01em; margin:0 0 4px;">Top of Descent Calculator</h1>
+     <p id="subtitleText" style="font-size:0.82rem; color:rgba(232,236,244,0.4); font-weight:400; margin:0; letter-spacing:0.02em;">Infinite Flight Descent Planner</p>
+    </header>
+    <main><!-- Input Form -->
+     <form id="calcForm" onsubmit="return false;" style="display:flex; flex-direction:column; gap:18px;"><!-- Cruising Altitude -->
+      <div><label for="cruiseAlt" class="label-text" style="display:block;"> <span class="plane-icon">✈</span> Cruising Altitude </label>
+       <div style="position:relative;"><input type="number" id="cruiseAlt" class="input-field" placeholder="35000" min="0" max="60000" aria-label="Cruising altitude in feet"> <span class="mono" style="position:absolute; right:16px; top:50%; transform:translateY(-50%); font-size:0.8rem; color:rgba(232,236,244,0.3); pointer-events:none;">ft</span>
+       </div>
+      </div><!-- Target Altitude -->
+      <div><label for="targetAlt" class="label-text" style="display:block;"> ⬇ Target Altitude </label>
+       <div style="position:relative;"><input type="number" id="targetAlt" class="input-field" placeholder="3000" min="0" max="60000" aria-label="Target altitude in feet"> <span class="mono" style="position:absolute; right:16px; top:50%; transform:translateY(-50%); font-size:0.8rem; color:rgba(232,236,244,0.3); pointer-events:none;">ft</span>
+       </div>
+      </div><!-- Ground Speed -->
+      <div><label for="groundSpeed" class="label-text" style="display:block;"> ⏱ Ground Speed </label>
+       <div style="position:relative;"><input type="number" id="groundSpeed" class="input-field" placeholder="450" min="0" max="999" aria-label="Ground speed in knots"> <span class="mono" style="position:absolute; right:16px; top:50%; transform:translateY(-50%); font-size:0.8rem; color:rgba(232,236,244,0.3); pointer-events:none;">kts</span>
+       </div>
+      </div><!-- Error Message -->
+      <div id="errorMsg" class="error-msg" role="alert"></div><!-- Calculate Button --> <button type="submit" id="calcBtn" class="calc-btn" onclick="calculateDescent(event)"> Calculate Descent </button>
+     </form><!-- Results Section -->
+     <section id="resultsSection" class="results-section" aria-live="polite" style="margin-top:28px;"><!-- Altitude to Lose Badge -->
+      <div style="text-align:center; margin-bottom:18px;">
+       <div class="altitude-badge" id="altBadge"><span>↕</span> <span id="altToLoseValue">—</span> <span>ft to descend</span>
+       </div>
+      </div><!-- TOD Distance -->
+      <div class="result-card" style="margin-bottom:14px;">
+       <div style="display:flex; align-items:flex-start; justify-content:space-between; padding-left:12px;">
+        <div>
+         <div class="label-text" style="margin-bottom:8px;">
+          Top of Descent Distance
+         </div>
+         <div class="result-value" id="todValue">
+          —
+         </div>
+        </div>
+        <div class="result-unit" style="padding-top:28px;">
+         NM
+        </div>
+       </div>
+      </div><!-- Vertical Speed -->
+      <div class="result-card">
+       <div style="display:flex; align-items:flex-start; justify-content:space-between; padding-left:12px;">
+        <div>
+         <div class="label-text" style="margin-bottom:8px;">
+          Recommended Vertical Speed
+         </div>
+         <div class="result-value" id="vsValue">
+          —
+         </div>
+        </div>
+        <div class="result-unit" style="padding-top:28px;">
+         ft/min
+        </div>
+       </div>
+      </div><!-- Descent Profile Visualization -->
+      <div style="margin-top:20px; padding:16px; background:rgba(0,212,170,0.04); border-radius:12px; border:1px solid rgba(0,212,170,0.08);">
+       <div class="label-text" style="text-align:center; margin-bottom:12px;">
+        Descent Profile
+       </div>
+       <svg id="profileSvg" width="100%" height="80" viewbox="0 0 360 80" preserveaspectratio="xMidYMid meet"><!-- Cruise line --> <line x1="20" y1="16" x2="120" y2="16" stroke="rgba(0,212,170,0.3)" stroke-width="1.5" stroke-dasharray="4,3" /> <!-- Descent line --> <line x1="120" y1="16" x2="300" y2="64" stroke="#00d4aa" stroke-width="2" /> <!-- Level line --> <line x1="300" y1="64" x2="340" y2="64" stroke="rgba(0,212,170,0.3)" stroke-width="1.5" stroke-dasharray="4,3" /> <!-- TOD marker --> <circle cx="120" cy="16" r="4" fill="#00d4aa" /> <text x="120" y="8" text-anchor="middle" fill="rgba(232,236,244,0.5)" font-size="8" font-family="JetBrains Mono, monospace">
+         TOD
+        </text> <!-- Plane icon at descent midpoint --> <text x="210" y="36" text-anchor="middle" fill="#00d4aa" font-size="14" transform="rotate(15,210,36)">
+         ✈
+        </text> <!-- Cruise alt label --> <text id="profileCruise" x="30" y="30" fill="rgba(232,236,244,0.35)" font-size="8" font-family="JetBrains Mono, monospace">
+         FL350
+        </text> <!-- Target alt label --> <text id="profileTarget" x="310" y="58" fill="rgba(232,236,244,0.35)" font-size="8" font-family="JetBrains Mono, monospace">
+         3,000
+        </text> <!-- Distance label --> <text id="profileDist" x="210" y="76" text-anchor="middle" fill="rgba(0,212,170,0.5)" font-size="8" font-family="JetBrains Mono, monospace">
+         96 NM
+        </text>
+       </svg>
+      </div><!-- Tip -->
+      <div style="margin-top:16px; text-align:center;">
+       <p style="font-size:0.72rem; color:rgba(232,236,244,0.25); margin:0; line-height:1.5;">Begin descent at the calculated distance from your destination.<br>
+         Set VS in Infinite Flight's autopilot panel.</p>
+      </div>
+     </section>
+    </main>
+    <footer style="text-align:center; margin-top:36px; padding-bottom:12px;">
+     <p style="font-size:0.68rem; color:rgba(232,236,244,0.15); margin:0; letter-spacing:0.05em;">TOD CALC · FOR INFINITE FLIGHT</p>
+    </footer>
+   </div>
+  </div>
+  <script>
+    function calculateDescent(e) {
+      e.preventDefault();
+
+      const errorEl = document.getElementById('errorMsg');
+      const resultsEl = document.getElementById('resultsSection');
+
+      // Clear previous error
+      errorEl.classList.remove('show');
+      errorEl.textContent = '';
+
+      const cruiseAlt = parseFloat(document.getElementById('cruiseAlt').value);
+      const targetAlt = parseFloat(document.getElementById('targetAlt').value);
+      const groundSpeed = parseFloat(document.getElementById('groundSpeed').value);
+
+      // Validation
+      const errors = [];
+      if (isNaN(cruiseAlt) || cruiseAlt < 0) errors.push('Enter a valid cruising altitude');
+      if (isNaN(targetAlt) || targetAlt < 0) errors.push('Enter a valid target altitude');
+      if (isNaN(groundSpeed) || groundSpeed <= 0) errors.push('Enter a valid ground speed');
+      if (!isNaN(cruiseAlt) && !isNaN(targetAlt) && cruiseAlt <= targetAlt) {
+        errors.push('Cruising altitude must be higher than target altitude');
+      }
+
+      if (errors.length > 0) {
+        errorEl.textContent = errors[0];
+        errorEl.classList.add('show');
+        resultsEl.classList.remove('show');
+        return;
+      }
+
+      // Step 1 — Altitude to lose
+      const altToLose = cruiseAlt - targetAlt;
+
+      // Step 2 — TOD Distance (NM)
+      const todDistance = (altToLose / 1000) * 3;
+
+      // Step 3 — Vertical Speed, rounded to nearest 100
+      const vsRaw = groundSpeed * 5;
+      const vsRounded = Math.round(vsRaw / 100) * 100;
+
+      // Display results
+      document.getElementById('altToLoseValue').textContent = altToLose.toLocaleString();
+      document.getElementById('todValue').textContent = todDistance.toFixed(1);
+      document.getElementById('vsValue').textContent = '-' + vsRounded.toLocaleString();
+
+      // Update profile labels
+      const cruiseFL = cruiseAlt >= 10000
+        ? 'FL' + Math.round(cruiseAlt / 100)
+        : cruiseAlt.toLocaleString();
+      document.getElementById('profileCruise').textContent = cruiseFL;
+      document.getElementById('profileTarget').textContent = targetAlt.toLocaleString();
+      document.getElementById('profileDist').textContent = todDistance.toFixed(1) + ' NM';
+
+      // Show results with animation
+      resultsEl.classList.remove('show');
+      void resultsEl.offsetWidth; // Trigger reflow for re-animation
+      resultsEl.classList.add('show');
+    }
+
+    // Default config for the element SDK
+    const defaultConfig = {
+      app_title: 'Top of Descent Calculator',
+      subtitle_text: 'Infinite Flight Descent Planner',
+      calculate_button_text: 'Calculate Descent',
+      background_color: '#0a0f1a',
+      surface_color: '#131b2e',
+      text_color: '#e8ecf4',
+      primary_color: '#00d4aa',
+      secondary_color: '#1e293b',
+      font_family: 'Outfit',
+      font_size: 16
+    };
+
+    function applyConfig(config) {
+      const bg = config.background_color || defaultConfig.background_color;
+      const surface = config.surface_color || defaultConfig.surface_color;
+      const text = config.text_color || defaultConfig.text_color;
+      const primary = config.primary_color || defaultConfig.primary_color;
+      const secondary = config.secondary_color || defaultConfig.secondary_color;
+      const fontFamily = config.font_family || defaultConfig.font_family;
+      const baseSize = config.font_size || defaultConfig.font_size;
+
+      // CSS variables
+      document.documentElement.style.setProperty('--bg-color', bg);
+      document.documentElement.style.setProperty('--surface-color', surface);
+      document.documentElement.style.setProperty('--text-color', text);
+      document.documentElement.style.setProperty('--primary-color', primary);
+      document.documentElement.style.setProperty('--secondary-color', secondary);
+
+      // Background
+      document.body.style.background = bg;
+      document.getElementById('appWrapper').style.background = bg;
+
+      // Text content
+      const titleEl = document.getElementById('appTitle');
+      const subtitleEl = document.getElementById('subtitleText');
+      const btnEl = document.getElementById('calcBtn');
+
+      titleEl.textContent = config.app_title || defaultConfig.app_title;
+      subtitleEl.textContent = config.subtitle_text || defaultConfig.subtitle_text;
+      btnEl.textContent = config.calculate_button_text || defaultConfig.calculate_button_text;
+
+      // Colors on elements
+      titleEl.style.color = text;
+      subtitleEl.style.color = text;
+      document.body.style.color = text;
+
+      btnEl.style.background = primary;
+      btnEl.style.color = bg;
+      btnEl.style.boxShadow = `0 4px 24px ${primary}33`;
+
+      // Font
+      const fontStack = `${fontFamily}, Outfit, sans-serif`;
+      document.body.style.fontFamily = fontStack;
+      titleEl.style.fontFamily = fontStack;
+      subtitleEl.style.fontFamily = fontStack;
+      btnEl.style.fontFamily = fontStack;
+
+      // Font sizing
+      titleEl.style.fontSize = `${baseSize * 1.45}px`;
+      subtitleEl.style.fontSize = `${baseSize * 0.82}px`;
+      btnEl.style.fontSize = `${baseSize * 1.1}px`;
+
+      // Labels
+      document.querySelectorAll('.label-text').forEach(el => {
+        el.style.color = `${text}80`;
+        el.style.fontSize = `${baseSize * 0.8}px`;
+        el.style.fontFamily = fontStack;
+      });
+
+      // Input fields
+      document.querySelectorAll('.input-field').forEach(el => {
+        el.style.background = secondary;
+        el.style.color = text;
+        el.style.borderColor = `${primary}26`;
+        el.style.fontSize = `${baseSize * 1.25}px`;
+      });
+
+      // Result cards
+      document.querySelectorAll('.result-card').forEach(el => {
+        el.style.background = surface;
+        el.style.borderColor = `${primary}1f`;
+      });
+
+      document.querySelectorAll('.result-card::before, .result-card').forEach(el => {
+        const before = el.querySelector || null;
+      });
+      // Result card left accent via style override
+      const styleTag = document.getElementById('dynamicStyles') || (() => {
+        const s = document.createElement('style');
+        s.id = 'dynamicStyles';
+        document.head.appendChild(s);
+        return s;
+      })();
+      styleTag.textContent = `
+        .result-card::before { background: ${primary} !important; }
+        .input-field:focus { border-color: ${primary} !important; box-shadow: 0 0 0 3px ${primary}1f !important; }
+        .calc-btn:hover { box-shadow: 0 6px 32px ${primary}4d !important; }
+        .result-value { color: ${primary} !important; font-size: ${baseSize * 2}px !important; }
+        .result-unit { color: ${primary}99 !important; font-size: ${baseSize * 0.85}px !important; }
+        .altitude-badge { background: ${primary}14 !important; border-color: ${primary}26 !important; color: ${primary} !important; font-size: ${baseSize * 0.8}px !important; }
+      `;
+
+      // SVG colors
+      document.querySelectorAll('#profileSvg line').forEach(line => {
+        const isDashed = line.getAttribute('stroke-dasharray');
+        line.setAttribute('stroke', isDashed ? `${primary}4d` : primary);
+      });
+      document.querySelectorAll('#profileSvg circle').forEach(c => c.setAttribute('fill', primary));
+      const planeSvgText = document.querySelector('#profileSvg text:nth-of-type(3)');
+      if (planeSvgText) planeSvgText.setAttribute('fill', primary);
+    }
+
+    // Initialize Element SDK
+    if (window.elementSdk) {
+      window.elementSdk.init({
+        defaultConfig,
+        onConfigChange: async (config) => {
+          applyConfig(config);
+        },
+        mapToCapabilities: (config) => ({
+          recolorables: [
+            {
+              get: () => config.background_color || defaultConfig.background_color,
+              set: (v) => { config.background_color = v; window.elementSdk.setConfig({ background_color: v }); }
+            },
+            {
+              get: () => config.surface_color || defaultConfig.surface_color,
+              set: (v) => { config.surface_color = v; window.elementSdk.setConfig({ surface_color: v }); }
+            },
+            {
+              get: () => config.text_color || defaultConfig.text_color,
+              set: (v) => { config.text_color = v; window.elementSdk.setConfig({ text_color: v }); }
+            },
+            {
+              get: () => config.primary_color || defaultConfig.primary_color,
+              set: (v) => { config.primary_color = v; window.elementSdk.setConfig({ primary_color: v }); }
+            },
+            {
+              get: () => config.secondary_color || defaultConfig.secondary_color,
+              set: (v) => { config.secondary_color = v; window.elementSdk.setConfig({ secondary_color: v }); }
+            }
+          ],
+          borderables: [],
+          fontEditable: {
+            get: () => config.font_family || defaultConfig.font_family,
+            set: (v) => { config.font_family = v; window.elementSdk.setConfig({ font_family: v }); }
+          },
+          fontSizeable: {
+            get: () => config.font_size || defaultConfig.font_size,
+            set: (v) => { config.font_size = v; window.elementSdk.setConfig({ font_size: v }); }
+          }
+        }),
+        mapToEditPanelValues: (config) => new Map([
+          ['app_title', config.app_title || defaultConfig.app_title],
+          ['subtitle_text', config.subtitle_text || defaultConfig.subtitle_text],
+          ['calculate_button_text', config.calculate_button_text || defaultConfig.calculate_button_text]
+        ])
+      });
+    }
+  </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9ce77695448e0ba4',t:'MTc3MTE4NjM3OS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
